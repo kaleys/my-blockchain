@@ -1,0 +1,38 @@
+{
+  "name": "my-blockchain-server",
+  "version": "1.0.0",
+  "description": "Cosmos SDK compatible blockchain server",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "start-real": "node real-server.js",
+    "start-old": "node index.js",
+    "dev": "node --watch src/index.js",
+    "demo": "node complete-blockchain.js",
+    "test": "node test.js",
+    "start-node1": "node src/index.js --port 1317 --p2p-port 6001",
+    "start-node2": "node src/index.js --port 1318 --p2p-port 6002 --peers ws://localhost:6001"
+  },
+  "keywords": [
+    "blockchain",
+    "cosmos",
+    "koa",
+    "tendermint"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@cosmjs/crypto": "^0.36.0",
+    "@cosmjs/encoding": "^0.36.0",
+    "bech32": "^2.0.0",
+    "koa": "^2.14.2",
+    "koa-bodyparser": "^4.4.1",
+    "koa-cors": "^0.0.16",
+    "koa-router": "^12.0.0",
+    "koa-static": "^5.0.0",
+    "minimist": "^1.2.8",
+    "secp256k1": "^5.0.1",
+    "ws": "^8.14.2"
+  }
+}
