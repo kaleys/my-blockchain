@@ -24,7 +24,6 @@ export class UTXO {
     this.spent = false // 是否已花费
     this.spentTxId = null // 花费该UTXO的交易ID
     this.spentHeight = null // 花费时的区块高度
-    this.confirmations = 0 // 确认数
   }
 
   /**
@@ -47,16 +46,6 @@ export class UTXO {
   }
 
   /**
-   * 更新确认数
-   * @param {number} currentHeight - 当前区块高度
-   */
-  updateConfirmations(currentHeight) {
-    if (this.blockHeight !== null) {
-      this.confirmations = Math.max(0, currentHeight - this.blockHeight + 1)
-    }
-  }
-
-  /**
    * 序列化UTXO
    * @returns {Object} 序列化数据
    */
@@ -70,30 +59,8 @@ export class UTXO {
       script_pub_key: this.scriptPubKey,
       spent: this.spent,
       spent_tx_id: this.spentTxId,
-      spent_height: this.spentHeight,
-      confirmations: this.confirmations
+      spent_height: this.spentHeight
     }
-  }
-
-  /**
-   * 从序列化数据恢复UTXO
-   * @param {Object} data - 序列化数据
-   * @returns {UTXO} UTXO实例
-   */
-  static deserialize(data) {
-    const utxo = new UTXO(
-      data.transaction_id,
-      data.output_index,
-      data.address,
-      parseFloat(data.amount),
-      data.block_height,
-      data.script_pub_key
-    )
-    utxo.spent = data.spent || false
-    utxo.spentTxId = data.spent_tx_id || null
-    utxo.spentHeight = data.spent_height || null
-    utxo.confirmations = data.confirmations || 0
-    return utxo
   }
 }
 
@@ -197,23 +164,13 @@ export class UTXOSet {
   }
 
   /**
-   * 检查UTXO是否存在且未花费
-   * @param {string} transactionId - 交易ID
-   * @param {number} outputIndex - 输出索引
-   * @returns {boolean} 是否存在且未花费
-   */
-  isUTXOAvailable(transactionId, outputIndex) {
-    const utxo = this.getUTXO(transactionId, outputIndex)
-    return utxo && !utxo.spent
-  }
-
-  /**
    * 获取地址的所有UTXO
    * @param {string} address - 地址
    * @returns {Array<UTXO>} UTXO列表
    */
   getUTXOsByAddress(address) {
     const utxoKeys = this.addressIndex.get(address) || new Set()
+    console.log('utxoKeys======>', utxoKeys)
     const utxos = []
 
     for (const key of utxoKeys) {
@@ -245,8 +202,6 @@ export class UTXOSet {
    */
   selectUTXOsForPayment(address, targetAmount, feePercentage = 10) {
     const availableUTXOs = this.getUTXOsByAddress(address)
-
-    console.log('availableUTXOs===>', availableUTXOs)
 
     if (availableUTXOs.length === 0) {
       throw new Error('没有可用的UTXO')
@@ -296,7 +251,6 @@ export class UTXOSet {
    */
   processTransaction(transaction, blockHeight) {
     console.log(`🔄 处理交易 ${transaction.id} (区块高度: ${blockHeight})`)
-
     // 1. 处理输入（移除被花费的UTXO）
     for (const input of transaction.inputs) {
       // 跳过Coinbase交易的输入
@@ -317,7 +271,7 @@ export class UTXOSet {
         )
       }
     }
-
+    console.log(transaction.outputs, transaction.outputs.length)
     // 2. 处理输出（添加新的UTXO）
     for (let i = 0; i < transaction.outputs.length; i++) {
       const output = transaction.outputs[i]
@@ -338,75 +292,6 @@ export class UTXOSet {
   }
 
   /**
-   * 回滚交易（撤销UTXO变更）
-   * @param {Transaction} transaction - 交易对象
-   * @param {number} blockHeight - 区块高度
-   */
-  rollbackTransaction(transaction, blockHeight) {
-    console.log(`↩️  回滚交易 ${transaction.id} (区块高度: ${blockHeight})`)
-
-    // 1. 移除交易创建的UTXO
-    for (let i = 0; i < transaction.outputs.length; i++) {
-      const key = `${transaction.id}:${i}`
-      const utxo = this.utxos.get(key)
-
-      if (utxo) {
-        this.utxos.delete(key)
-
-        // 从地址索引移除
-        const addressSet = this.addressIndex.get(utxo.address)
-        if (addressSet) {
-          addressSet.delete(key)
-          if (addressSet.size === 0) {
-            this.addressIndex.delete(utxo.address)
-          }
-        }
-
-        this.totalSupply -= utxo.amount
-      }
-    }
-
-    // 2. 恢复被花费的UTXO
-    for (const input of transaction.inputs) {
-      // 跳过Coinbase交易的输入
-      if (input.transactionId === '0'.repeat(64)) {
-        continue
-      }
-
-      const key = `${input.transactionId}:${input.outputIndex}`
-      const spentUTXO = this.spentUTXOs.get(key)
-
-      if (spentUTXO && spentUTXO.spentTxId === transaction.id) {
-        // 恢复UTXO
-        spentUTXO.spent = false
-        spentUTXO.spentTxId = null
-        spentUTXO.spentHeight = null
-
-        this.utxos.set(key, spentUTXO)
-        this.spentUTXOs.delete(key)
-
-        // 恢复地址索引
-        if (!this.addressIndex.has(spentUTXO.address)) {
-          this.addressIndex.set(spentUTXO.address, new Set())
-        }
-        this.addressIndex.get(spentUTXO.address).add(key)
-
-        this.totalSupply += spentUTXO.amount
-      }
-    }
-  }
-
-  /**
-   * 更新所有UTXO的确认数
-   * @param {number} currentHeight - 当前区块高度
-   */
-  updateConfirmations(currentHeight) {
-    for (const utxo of this.utxos.values()) {
-      utxo.updateConfirmations(currentHeight)
-    }
-  }
-
-  /**
    * 清理旧的已花费UTXO记录
    * @param {number} maxAge - 最大保留区块数
    */
@@ -423,99 +308,6 @@ export class UTXOSet {
 
     if (cleanedCount > 0) {
       console.log(`🧹 清理了 ${cleanedCount} 个旧的已花费UTXO记录`)
-    }
-  }
-
-  /**
-   * 验证UTXO集合完整性
-   * @throws {Error} 如果发现不一致
-   */
-  validate() {
-    let totalInMap = 0
-    let totalInIndex = 0
-
-    // 验证主映射表和地址索引的一致性
-    for (const [key, utxo] of this.utxos) {
-      totalInMap += utxo.amount
-
-      // 检查地址索引
-      const addressSet = this.addressIndex.get(utxo.address)
-      if (!addressSet || !addressSet.has(key)) {
-        throw new Error(
-          `地址索引不一致: UTXO ${key} 未在地址 ${utxo.address} 的索引中`
-        )
-      }
-    }
-
-    // 验证地址索引
-    for (const [address, utxoKeys] of this.addressIndex) {
-      for (const key of utxoKeys) {
-        const utxo = this.utxos.get(key)
-        if (!utxo) {
-          throw new Error(`地址索引包含不存在的UTXO: ${key}`)
-        }
-        if (utxo.address !== address) {
-          throw new Error(
-            `UTXO ${key} 的地址不匹配: 期望 ${address}，实际 ${utxo.address}`
-          )
-        }
-        totalInIndex += utxo.amount
-      }
-    }
-
-    // 验证总供应量
-    if (totalInMap !== this.totalSupply) {
-      throw new Error(
-        `总供应量不一致: 映射表总额 ${totalInMap}，记录总额 ${this.totalSupply}`
-      )
-    }
-
-    if (totalInMap !== totalInIndex) {
-      throw new Error(
-        `地址索引总额不一致: 映射表总额 ${totalInMap}，索引总额 ${totalInIndex}`
-      )
-    }
-
-    console.log('✅ UTXO集合验证通过')
-  }
-
-  /**
-   * 获取统计信息
-   * @returns {Object} 统计信息
-   */
-  getStats() {
-    const uniqueAddresses = this.addressIndex.size
-    const totalUTXOs = this.utxos.size
-    const spentUTXOsCount = this.spentUTXOs.size
-
-    // 按金额分组统计
-    const amountRanges = {
-      dust: 0, // < 0.001 tokens
-      small: 0, // 0.001 - 0.1 tokens
-      medium: 0, // 0.1 - 10 tokens
-      large: 0 // > 10 tokens
-    }
-
-    for (const utxo of this.utxos.values()) {
-      if (utxo.amount < 0.001) {
-        amountRanges.dust++
-      } else if (utxo.amount < 0.1) {
-        amountRanges.small++
-      } else if (utxo.amount < 10) {
-        amountRanges.medium++
-      } else {
-        amountRanges.large++
-      }
-    }
-
-    return {
-      totalSupply: this.totalSupply,
-      totalUTXOs,
-      uniqueAddresses,
-      spentUTXOsCount,
-      lastProcessedHeight: this.lastProcessedHeight,
-      amountRanges,
-      averageUTXOAmount: totalUTXOs > 0 ? this.totalSupply / totalUTXOs : 0
     }
   }
 
@@ -552,39 +344,6 @@ export class UTXOSet {
       total_supply: this.totalSupply.toString(),
       last_processed_height: this.lastProcessedHeight
     }
-  }
-
-  /**
-   * 从序列化数据恢复UTXO集合
-   * @param {Object} data - 序列化数据
-   * @returns {UTXOSet} UTXO集合实例
-   */
-  static deserialize(data) {
-    const utxoSet = new UTXOSet()
-
-    // 恢复UTXO
-    if (data.utxos) {
-      for (const utxoData of data.utxos) {
-        const utxo = UTXO.deserialize(utxoData)
-        utxoSet.addUTXO(utxo)
-      }
-    }
-
-    // 恢复已花费的UTXO
-    if (data.spent_utxos) {
-      for (const utxoData of data.spent_utxos) {
-        const utxo = UTXO.deserialize(utxoData)
-        utxoSet.spentUTXOs.set(utxo.getKey(), utxo)
-      }
-    }
-
-    // 恢复其他属性
-    utxoSet.totalSupply = parseFloat(data.total_supply) || 0
-    utxoSet.lastProcessedHeight = data.last_processed_height || 0
-
-    console.log(`📦 从序列化数据恢复UTXO集合: ${utxoSet.utxos.size} 个UTXO`)
-
-    return utxoSet
   }
 }
 

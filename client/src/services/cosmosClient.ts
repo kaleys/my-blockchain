@@ -48,8 +48,7 @@ export class CosmosClientService {
     }
   }
 
-  // This method would need a real private key to be useful for signing.
-  // For now, it just sets the current address for the service.
+  // 当前地址
   async setActiveAddress(address: string) {
     this.currentAddress = address
   }
@@ -82,33 +81,6 @@ export class CosmosClientService {
         success: false,
         error: error instanceof Error ? error.message : 'Balance query failed',
         data: { denom: 'utoken', amount: '0' }
-      }
-    }
-  }
-
-  // Get UTXOs for an address
-  async getUTXOs(address: string): Promise<ApiResponse<{ utxos: UTXO[] }>> {
-    try {
-      const response = await fetch(
-        `${this.restEndpoint}/api/addresses/${address}/utxos`
-      )
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-      }
-      const result = await response.json()
-      if (!result.success) {
-        throw new Error(result.error || 'Failed to fetch UTXOs')
-      }
-      return {
-        success: true,
-        data: { utxos: result.data.utxos }
-      }
-    } catch (error) {
-      console.error(`❌ 查询地址 ${address} UTXOs 失败:`, error)
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'UTXO query failed',
-        data: { utxos: [] }
       }
     }
   }
@@ -188,11 +160,9 @@ export class CosmosClientService {
     }
   }
 
-  async getBlock(height?: number): Promise<ApiResponse<BlockInfo>> {
+  async getBlock(height): Promise<ApiResponse<BlockInfo>> {
     try {
-      const endpoint = height
-        ? `${this.restEndpoint}/api/blocks/${height}`
-        : `${this.restEndpoint}/api/blocks/latest`
+      const endpoint = `${this.restEndpoint}/api/blocks/${height}`
       const response = await fetch(endpoint)
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)

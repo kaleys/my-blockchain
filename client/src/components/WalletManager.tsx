@@ -33,10 +33,8 @@ const WalletManager: React.FC<WalletManagerProps> = ({
   const [currentAccount, setCurrentAccount] = useState<number>(0)
   const [isCreating, setIsCreating] = useState(false)
   const [isAddingAccount, setIsAddingAccount] = useState(false)
-  const [showMnemonic, setShowMnemonic] = useState<{ [key: string]: boolean }>(
-    {}
-  )
-  const [expandedWallets, setExpandedWallets] = useState<Set<string>>(new Set())
+  const [showMnemonic, setShowMnemonic] = useState(false)
+  const [expandedWallet, setExpandedWallet] = useState(false)
   const [accountBalances, setAccountBalances] = useState<{
     [key: string]: string
   }>({})
@@ -52,11 +50,11 @@ const WalletManager: React.FC<WalletManagerProps> = ({
     message: string
   }>({ type: null, message: '' })
 
+  // 本地存储读取钱包
   const loadWallet = async () => {
     try {
-      const list = walletManager.getWalletList()
-      if (list.length > 0) {
-        const mainWallet = list[0]
+      const mainWallet = walletManager.getWallet()
+      if (mainWallet.id) {
         setWallet(mainWallet)
         onWalletChange(mainWallet)
       } else {
@@ -68,11 +66,10 @@ const WalletManager: React.FC<WalletManagerProps> = ({
     }
   }
 
+  // 选择钱包的账号
   const activateAccount = async (accountIndex: number) => {
     try {
-      if (!wallet) throw new Error('没有钱包可用')
       const account = wallet.accounts[accountIndex]
-      if (!account) throw new Error('账户不存在')
 
       await cosmosClient.setActiveAddress(account.address)
       setCurrentAccount(accountIndex)
@@ -90,17 +87,8 @@ const WalletManager: React.FC<WalletManagerProps> = ({
     }
   }
 
+  // 生成助记词
   const handleStartCreation = () => {
-    // 检查是否已有钱包
-    if (wallet) {
-      setStatus({
-        type: 'warning',
-        message:
-          '已有钱包存在。当前为单钱包模式，如需创建新钱包请先删除现有钱包。'
-      })
-      return
-    }
-
     const newMnemonic = walletManager.generateMnemonic()
     setPendingMnemonic(newMnemonic)
     setCreationStep('confirming')
@@ -116,12 +104,8 @@ const WalletManager: React.FC<WalletManagerProps> = ({
     setStatus({ type: null, message: '' })
   }
 
+  // 生成钱包
   const handleConfirmCreation = async () => {
-    if (!pendingMnemonic) {
-      setStatus({ type: 'error', message: '没有可用的助记词' })
-      return
-    }
-
     setIsCreating(true)
     try {
       const walletInfo = await walletManager.createWallet({
@@ -153,12 +137,8 @@ const WalletManager: React.FC<WalletManagerProps> = ({
       setIsCreating(false)
     }
   }
-
+  // 添加账号
   const handleAddAccount = async () => {
-    if (!wallet) {
-      setStatus({ type: 'error', message: '没有可用的钱包' })
-      return
-    }
     setIsAddingAccount(true)
     try {
       const newAccount = await walletManager.addAccountToWallet()
@@ -168,7 +148,7 @@ const WalletManager: React.FC<WalletManagerProps> = ({
           newAccount.index
         } 添加成功: ${newAccount.address.substring(0, 12)}...`
       })
-      await loadWallet() // Refresh wallet state
+      await loadWallet() // 刷新账号
     } catch (error) {
       setStatus({
         type: 'error',
@@ -179,9 +159,9 @@ const WalletManager: React.FC<WalletManagerProps> = ({
     }
   }
 
-  const exportWallet = async (walletId: string) => {
+  const exportWallet = async () => {
     try {
-      const backupData = walletManager.exportWallet(walletId)
+      const backupData = walletManager.exportWallet()
       if (!backupData) {
         throw new Error('钱包不存在或无法导出')
       }
@@ -190,7 +170,7 @@ const WalletManager: React.FC<WalletManagerProps> = ({
       const url = URL.createObjectURL(dataBlob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `cosmos-wallet-backup.json`
+      link.download = `wallet-backup.json`
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
@@ -214,24 +194,20 @@ const WalletManager: React.FC<WalletManagerProps> = ({
     }
   }
 
-  const toggleMnemonicVisibility = (walletId: string) => {
-    setShowMnemonic((prev) => ({ ...prev, [walletId]: !prev[walletId] }))
-  }
-
-  const toggleWalletExpansion = (walletId: string) => {
-    setExpandedWallets((prev) => {
-      const next = new Set(prev)
-      if (next.has(walletId)) {
-        next.delete(walletId)
-      } else {
-        next.add(walletId)
-      }
-      return next
+  const toggleMnemonicVisibility = () => {
+    setShowMnemonic((prev) => {
+      return !prev
     })
   }
 
-  const getWalletMnemonic = (walletId: string): string | null => {
-    return walletManager.getWalletMnemonic(walletId)
+  const toggleWalletExpansion = () => {
+    setExpandedWallet((prev) => {
+      return !prev
+    })
+  }
+
+  const getWalletMnemonic = (): string | null => {
+    return walletManager.getWalletMnemonic()
   }
 
   // 获取账户余额
@@ -241,13 +217,13 @@ const WalletManager: React.FC<WalletManagerProps> = ({
       const result = await cosmosClient.getBalance(address)
       if (result.success && result.data) {
         const amount = result.data.amount || '0'
-        const balance = amount // 转换为 TOKEN 单位
+        const balance = amount
         setAccountBalances((prev) => ({ ...prev, [address]: balance }))
       } else {
-        setAccountBalances((prev) => ({ ...prev, [address]: '0.00000000' }))
+        setAccountBalances((prev) => ({ ...prev, [address]: '0' }))
       }
     } catch {
-      setAccountBalances((prev) => ({ ...prev, [address]: '0.00000000' }))
+      setAccountBalances((prev) => ({ ...prev, [address]: '0' }))
     } finally {
       setLoadingBalance(null)
     }
@@ -359,7 +335,7 @@ const WalletManager: React.FC<WalletManagerProps> = ({
                 <div className="space-y-2">
                   {wallet.accounts.map((account, index) => (
                     <div
-                      key={account.index}
+                      key={index}
                       className={`p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
                         currentAccount === index
                           ? 'border-cosmos-300 bg-cosmos-50'
@@ -425,18 +401,18 @@ const WalletManager: React.FC<WalletManagerProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation()
-                      toggleWalletExpansion(wallet.id)
+                      toggleWalletExpansion()
                     }}
                     className="btn-secondary text-xs px-3 py-1.5 flex items-center"
                   >
                     <FileText className="w-3 h-3 mr-1" />
-                    {expandedWallets.has(wallet.id) ? '隐藏详情' : '查看详情'}
+                    {expandedWallet ? '隐藏详情' : '查看详情'}
                   </button>
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        exportWallet(wallet.id)
+                        exportWallet()
                       }}
                       className="btn-secondary text-xs px-3 py-1.5 flex items-center"
                     >
@@ -457,10 +433,10 @@ const WalletManager: React.FC<WalletManagerProps> = ({
                 </div>
               </div>
 
-              {expandedWallets.has(wallet.id) &&
+              {expandedWallet &&
                 (() => {
                   const mnemonic = getWalletMnemonic(wallet.id)
-                  const showMnemonicText = showMnemonic[wallet.id] || false
+                  const showMnemonicText = showMnemonic || false
                   return (
                     <div className="border-t border-gray-200/50 bg-gray-50 p-5 space-y-4">
                       {mnemonic && (
@@ -552,7 +528,7 @@ const WalletManager: React.FC<WalletManagerProps> = ({
                   className="btn-primary w-full"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  创建新钱包
+                  创建钱包
                 </button>
               </>
             )}

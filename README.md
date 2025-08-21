@@ -1,6 +1,8 @@
+<!-- @format -->
+
 # My Blockchain
 
-一个基于 Cosmos SDK 兼容的区块链项目，包含完整的挖矿、转账和区块浏览功能。
+一个基于模拟比特币链的区块链项目，包含完整的挖矿、转账和区块浏览功能。
 
 ## 项目结构
 
@@ -17,7 +19,6 @@ my-blockchain/
 │   │   │   ├── P2PNetwork.js     # P2P 网络
 │   │   │   ├── Transaction.js    # 交易处理
 │   │   │   └── UTXOSet.js        # UTXO 集合管理
-│   │   ├── rpc/           # RPC 接口
 │   │   ├── utils/         # 工具类
 │   │   └── app.js         # 应用入口
 │   └── package.json
@@ -81,18 +82,22 @@ npm run build
 ## API 接口说明
 
 ### 地址管理
+
 - `POST /api/addresses/generate` - 生成新地址
 - `GET /api/addresses/:address/balance` - 查询地址余额
 
 ### 区块查询
+
 - `GET /api/blocks/all` - 获取所有区块
 - `GET /api/blocks/:height` - 获取指定高度的区块
 
 ### 交易相关
+
 - `POST /api/mining/miner/transfer` - 矿工转账
 - `POST /api/transactions/client-transfer` - 客户端转账
 
 ### 挖矿管理
+
 - `GET /api/mining/miner` - 获取矿工信息
 - `POST /api/mining/start` - 开始挖矿
 - `POST /api/mining/stop` - 停止挖矿
@@ -111,18 +116,20 @@ npm run build
 ## 技术栈
 
 ### 后端
+
 - Node.js
-- Koa.js (Web框架)
-- WebSocket (P2P通信)
+- Koa.js (Web 框架)
+- WebSocket (P2P 通信)
 - secp256k1 (加密签名)
-- @cosmjs/* (Cosmos SDK兼容)
+- @cosmjs/\* (Cosmos SDK 兼容)
 
 ### 前端
+
 - React 19
 - TypeScript
 - Tailwind CSS
 - Vite (构建工具)
-- @cosmjs/* (Cosmos客户端)
+- @cosmjs/\* (Cosmos 客户端)
 
 ## 开发说明
 

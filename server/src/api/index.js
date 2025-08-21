@@ -70,40 +70,6 @@ export default (blockchain, miningManager) => {
     }
   })
 
-  // 获得地址的utxo
-  router.get('/addresses/:address/utxos', async (ctx) => {
-    try {
-      const { address } = ctx.params
-      const utxos = blockchain.utxoSet.getUTXOsByAddress(address)
-      ctx.body = {
-        success: true,
-        data: {
-          address,
-          utxos: utxos.map((utxo) => utxo.serialize()),
-          count: utxos.length
-        }
-      }
-    } catch (error) {
-      ctx.status = 500
-      ctx.body = { success: false, error: error.message }
-    }
-  })
-
-  // 获取最新的10条
-  router.get('/blocks/latest', async (ctx) => {
-    const block = blockchain.getLatestBlock()
-    ctx.body = {
-      success: true,
-      data: {
-        block_id: {
-          hash: block.hash,
-          part_set_header: { total: 1, hash: block.hash }
-        },
-        block: block
-      }
-    }
-  })
-
   // 获取所有区块 - 放在 :height 路由之前避免冲突
   router.get('/blocks/all', async (ctx) => {
     try {
@@ -327,7 +293,6 @@ export default (blockchain, miningManager) => {
   })
 
   // ===== 挖矿 API =====
-
   // 获取矿工信息
   router.get('/mining/miner', async (ctx) => {
     try {
@@ -418,93 +383,6 @@ export default (blockchain, miningManager) => {
       ctx.body = {
         success: true,
         data: status
-      }
-    } catch (error) {
-      ctx.status = 500
-      ctx.body = { success: false, error: error.message }
-    }
-  })
-
-  // 初始化矿工钱包
-  router.post('/mining/miner/init', async (ctx) => {
-    try {
-      if (!miningManager) {
-        ctx.status = 503
-        ctx.body = { success: false, error: '挖矿管理器未启用' }
-        return
-      }
-
-      const { address, privateKey } = ctx.request.body
-      const result = miningManager.minerWallet.initialize({
-        address,
-        privateKey
-      })
-
-      ctx.body = {
-        success: result.success,
-        data: result.success
-          ? {
-              address: result.address,
-              name: result.name,
-              hasPrivateKey: result.hasPrivateKey,
-              hasPublicKey: result.hasPublicKey
-            }
-          : null,
-        error: result.error
-      }
-    } catch (error) {
-      ctx.status = 500
-      ctx.body = { success: false, error: error.message }
-    }
-  })
-
-  // 设置矿工地址
-  router.put('/mining/miner/address', async (ctx) => {
-    try {
-      if (!miningManager) {
-        ctx.status = 503
-        ctx.body = { success: false, error: '挖矿管理器未启用' }
-        return
-      }
-
-      const { address } = ctx.request.body
-      if (!address) {
-        ctx.status = 400
-        ctx.body = { success: false, error: '地址不能为空' }
-        return
-      }
-
-      const success = miningManager.minerWallet.setAddress(address)
-
-      if (success) {
-        ctx.body = {
-          success: true,
-          data: miningManager.minerWallet.getInfo()
-        }
-      } else {
-        ctx.status = 400
-        ctx.body = { success: false, error: '无效的地址格式' }
-      }
-    } catch (error) {
-      ctx.status = 500
-      ctx.body = { success: false, error: error.message }
-    }
-  })
-
-  // 重置挖矿统计
-  router.post('/mining/reset-stats', async (ctx) => {
-    try {
-      if (!miningManager) {
-        ctx.status = 503
-        ctx.body = { success: false, error: '挖矿管理器未启用' }
-        return
-      }
-
-      miningManager.resetStats()
-
-      ctx.body = {
-        success: true,
-        message: '挖矿统计已重置'
       }
     } catch (error) {
       ctx.status = 500

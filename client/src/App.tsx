@@ -16,6 +16,7 @@ function App() {
   const [activeTab, setActiveTab] = useState<TabType>('wallet')
   const [cosmosClient] = useState(() => new CosmosClientService())
   const [isConnected, setIsConnected] = useState(false)
+  const [isConnecting, setIsConnecting] = useState(false)
   const [currentWallet, setCurrentWallet] = useState<WalletInfo | null>(null)
 
   const connectToNetwork = async () => {
@@ -33,11 +34,11 @@ function App() {
 
   const loadCurrentWallet = async () => {
     try {
-      const wallets = walletManager.getWalletList()
-      const lastUsedWallet = wallets.find((w) => w.lastUsed)
-      if (lastUsedWallet) {
-        setCurrentWallet(lastUsedWallet)
-        await cosmosClient.setActiveAddress(lastUsedWallet.address)
+      const wallet = walletManager.getWallet()
+      console.log(wallet)
+      if (wallet) {
+        setCurrentWallet(wallet)
+        await cosmosClient.setActiveAddress(wallet)
       }
     } catch (error) {
       console.error('加载当前钱包失败:', error)

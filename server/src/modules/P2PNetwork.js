@@ -22,6 +22,7 @@ export class P2PNetwork extends EventEmitter {
     // 网络状态
     this.isRunning = false
     this.sockets = new Map() // 使用 Map 存储 socket 连接，key 为 host:port
+    this.server = null
 
     console.log(`🌐 P2P网络节点初始化: ${this.nodeId}`)
     console.log(`📊 链ID: ${this.chainId}`)
@@ -42,11 +43,17 @@ export class P2PNetwork extends EventEmitter {
     server.listen(this.p2pPort, () => {
       console.log(`🅿️ P2P服务器正在监听端口: ${this.p2pPort}`)
     })
+    this.server = server
 
     // 连接到初始节点
     this.initialPeers.forEach((peer) => {
       this.connectToPeer(peer.host, peer.port)
     })
+  }
+
+  stop() {
+    this.server.close()
+    this.sockets = new Map()
   }
 
   /**
@@ -127,6 +134,10 @@ export class P2PNetwork extends EventEmitter {
    * @param {object} blockData
    */
   handleNewBlock(blockData) {
+    // 验证区块的
+    // 1、 previous_hash是否是所在节点的最后一个节点
+    // 2 merkler_tree、交易验证
+    // 3. 执行区块里的所有交易，更新自己的utxo账户信息
     console.log('完啦，活被人抢了')
   }
 
@@ -135,11 +146,9 @@ export class P2PNetwork extends EventEmitter {
    * @param {object} txData
    */
   handleNewTransaction(txData) {
-    // const tx = Transaction.deserialize(txData)
-    // const result = this.blockchain.addTransactionToMempool(tx)
-    // if (!result.success) {
-    //   console.warn(`从网络接收到的交易无效: ${result.error}`)
-    // }
+    // 判断内存池是否有交易
+    // 验证交易格式，金额，签名，双花attract
+    // 加到自己的内存池
     console.log('来活啦')
   }
 

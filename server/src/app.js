@@ -3,7 +3,6 @@
 import Koa from 'koa'
 import bodyParser from 'koa-bodyparser'
 import cors from 'koa-cors'
-import { WebSocketServer } from 'ws'
 import http from 'http'
 
 import Blockchain from './modules/Blockchain.js'
@@ -75,33 +74,6 @@ export function createApp(config = {}) {
 
   // Create HTTP server
   const server = http.createServer(app.callback())
-
-  // Blockchain event listeners to broadcast to UI
-  blockchain.on('blockAdded', (data) => {
-    const message = JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'subscription',
-      params: {
-        query: "tm.event='NewBlock'",
-        data: {
-          type: 'tendermint/event/NewBlock',
-          value: { block: data.block, height: data.height }
-        }
-      }
-    })
-    wsClients.forEach((client) => {
-      if (client.readyState === 1) client.send(message)
-    })
-  })
-
-  miningManager.on('blockMined', (data) => {
-    console.log(`🎉 挖矿成功通知: 区块 #${data.block.header.height}`)
-    // Broadcast to P2P network is handled within Blockchain class which listens to its own mining events
-    const message = JSON.stringify({ type: 'blockMined', data })
-    wsClients.forEach((client) => {
-      if (client.readyState === 1) client.send(message)
-    })
-  })
 
   return { server, blockchain, miningManager }
 }

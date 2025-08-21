@@ -1,13 +1,10 @@
 /** @format */
 
-import { EventEmitter } from 'events'
-
 /**
  * 挖矿管理器
  */
-export class MiningManager extends EventEmitter {
+export class MiningManager {
   constructor(blockchain, minerWallet) {
-    super()
     this.blockchain = blockchain
     this.minerWallet = minerWallet
     this.isMining = false
@@ -20,7 +17,6 @@ export class MiningManager extends EventEmitter {
       startTime: null,
       currentNonce: 0
     }
-    this.miningInterval = null
     this.progressCallback = null
   }
 
@@ -95,11 +91,6 @@ export class MiningManager extends EventEmitter {
 
     this.isMining = false
 
-    if (this.miningInterval) {
-      clearTimeout(this.miningInterval)
-      this.miningInterval = null
-    }
-
     const miningDuration =
       Date.now() - (this.miningStats.startTime || Date.now())
 
@@ -109,11 +100,6 @@ export class MiningManager extends EventEmitter {
     console.log(
       `   平均哈希率: ${this.miningStats.currentHashRate.toFixed(2)} H/s`
     )
-
-    this.emit('miningStopped', {
-      stats: this.miningStats,
-      duration: miningDuration
-    })
 
     return {
       success: true,
@@ -135,10 +121,6 @@ export class MiningManager extends EventEmitter {
     // 检查内存池是否有交易
     if (this.blockchain.mempool.size === 0) {
       console.log(`⏸️ 内存池为空，等待交易...`)
-      this.emit('miningWaiting', {
-        reason: '内存池无交易',
-        stats: this.miningStats
-      })
 
       // 等待5秒后重新检查
       setTimeout(() => {
@@ -180,22 +162,13 @@ export class MiningManager extends EventEmitter {
           `   挖矿统计: ${result.miningStats.attempts} 次尝试, 用时 ${result.miningStats.duration}ms`
         )
 
-        this.emit('blockMined', {
-          block: result.block,
-          miningStats: result.miningStats,
-          totalStats: this.miningStats
+        // 广播交易
+        this.blockchain.p2pNetwork.broadcast({
+          type: 'NEW_BLOCK',
+          payload: 'hello'
         })
-
-        // 继续挖下一个区块
-        setTimeout(() => {
-          this.mineNextBlock(minerAddress)
-        }, 1000) // 稍微延迟一下
       } else {
         console.error(`❌ 挖矿失败: ${result.error}`)
-        this.emit('miningError', {
-          error: result.error,
-          stats: this.miningStats
-        })
 
         // 重试
         setTimeout(() => {
@@ -204,10 +177,6 @@ export class MiningManager extends EventEmitter {
       }
     } catch (error) {
       console.error(`❌ 挖矿过程出错: ${error.message}`)
-      this.emit('miningError', {
-        error: error.message,
-        stats: this.miningStats
-      })
 
       // 重试
       setTimeout(() => {

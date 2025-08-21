@@ -38,36 +38,6 @@ export class TransactionInput {
       null // Coinbase没有前置金额
     )
   }
-
-  /**
-   * 验证输入有效性
-   * @returns {Object} 验证结果
-   */
-  // isValid() {
-  //   // Coinbase输入验证
-  //   if (
-  //     this.transactionId === '0'.repeat(64) &&
-  //     this.outputIndex === 0xffffffff
-  //   ) {
-  //     return { valid: true, reason: 'Coinbase输入有效' }
-  //   }
-
-  //   // 普通输入验证
-  //   if (!this.transactionId || this.transactionId.length !== 64) {
-  //     return { valid: false, reason: '交易ID格式无效' }
-  //   }
-
-  //   if (typeof this.outputIndex !== 'number' || this.outputIndex < 0) {
-  //     return { valid: false, reason: '输出索引无效' }
-  //   }
-
-  //   if (!this.publicKey) {
-  //     return { valid: false, reason: '缺少公钥' }
-  //   }
-
-  //   return { valid: true, reason: '输入有效' }
-  // }
-
   /**
    * 序列化输入
    * @returns {Object} 序列化数据
@@ -80,22 +50,6 @@ export class TransactionInput {
       public_key: this.publicKey,
       sequence: this.sequence
     }
-  }
-
-  /**
-   * 从序列化数据恢复输入
-   * @param {Object} data - 序列化数据
-   * @returns {TransactionInput} 输入实例
-   */
-  static deserialize(data) {
-    const input = new TransactionInput(
-      data.transaction_id,
-      data.output_index,
-      data.script_sig,
-      data.public_key
-    )
-    input.sequence = data.sequence || 0xffffffff
-    return input
   }
 }
 
@@ -114,45 +68,6 @@ export class TransactionOutput {
   }
 
   /**
-   * 验证输出有效性
-   * @returns {Object} 验证结果
-   */
-  // isValid() {
-  //   if (!this.address || typeof this.address !== 'string') {
-  //     return { valid: false, reason: '接收地址无效' }
-  //   }
-
-  //   if (typeof this.amount !== 'number' || this.amount <= 0) {
-  //     return { valid: false, reason: '金额必须大于0' }
-  //   }
-
-  //   // 检查金额精度（最多8位小数）
-  //   const roundedAmount = Math.round(this.amount * 100000000) / 100000000
-  //   if (Math.abs(this.amount - roundedAmount) > 1e-8) {
-  //     return { valid: false, reason: '金额精度不能超过8位小数' }
-  //   }
-
-  //   // 检查最大金额限制
-  //   const maxAmount = 21000000 // 2100万个token
-  //   if (this.amount > maxAmount) {
-  //     return { valid: false, reason: '金额超过最大限制' }
-  //   }
-
-  //   return { valid: true, reason: '输出有效' }
-  // }
-
-  /**
-   * 标记为已花费
-   * @param {string} txId - 花费该输出的交易ID
-   * @param {number} height - 区块高度
-   */
-  markAsSpent(txId, height) {
-    this.spent = true
-    this.spentTxId = txId
-    this.spentHeight = height
-  }
-
-  /**
    * 序列化输出
    * @returns {Object} 序列化数据
    */
@@ -165,23 +80,6 @@ export class TransactionOutput {
       spent_tx_id: this.spentTxId,
       spent_height: this.spentHeight
     }
-  }
-
-  /**
-   * 从序列化数据恢复输出
-   * @param {Object} data - 序列化数据
-   * @returns {TransactionOutput} 输出实例
-   */
-  static deserialize(data) {
-    const output = new TransactionOutput(
-      data.address,
-      parseFloat(data.amount),
-      data.script_pub_key
-    )
-    output.spent = data.spent || false
-    output.spentTxId = data.spent_tx_id || null
-    output.spentHeight = data.spent_height || null
-    return output
   }
 }
 
@@ -489,8 +387,8 @@ export class Transaction {
         return new TransactionInput(
           utxo.transactionId,
           utxo.outputIndex,
-          '', //签名
-          publicKey, // 添加公钥
+          '', //签名 证明这个公钥确实是我的
+          publicKey, // 添加公钥,这次的input 要与上一次的output的地址做比较，看来源对不对
           utxo.amount // 添加金额用于显示
         )
       })
@@ -553,7 +451,7 @@ export class Transaction {
         amount: utxo.amount
       }
 
-      // 生成签名
+      // 生成签名，用提供的公钥来验证签名
       if (privateKey) {
         input.scriptSig = CryptoUtils.sign(
           JSON.stringify(signatureData),
@@ -567,17 +465,6 @@ export class Transaction {
 
     // 重新计算交易ID（包含签名后）
     this.updateTransactionId()
-  }
-
-  /**
-   * 确认交易
-   * @param {number} blockHeight - 区块高度
-   * @param {string} blockHash - 区块哈希
-   */
-  confirm(blockHeight, blockHash) {
-    this.confirmed = true
-    this.blockHeight = blockHeight
-    this.blockHash = blockHash
   }
 
   /**
@@ -599,7 +486,6 @@ export class Transaction {
       feeRate: this.getFeeRate(),
       size: this.getSize(),
       timestamp: this.timestamp,
-      confirmed: this.confirmed,
       blockHeight: this.blockHeight,
       isCoinbase: this.isCoinbase()
     }
@@ -619,37 +505,9 @@ export class Transaction {
       fee: this.fee,
       size: this.size,
       timestamp: this.timestamp,
-      confirmed: this.confirmed,
       block_height: this.blockHeight,
       block_hash: this.blockHash
     }
-  }
-
-  /**
-   * 从序列化数据恢复交易
-   * @param {Object} data - 序列化数据
-   * @returns {Transaction} 交易实例
-   */
-  static deserialize(data) {
-    const inputs = data.inputs.map((inputData) =>
-      TransactionInput.deserialize(inputData)
-    )
-    const outputs = data.outputs.map((outputData) =>
-      TransactionOutput.deserialize(outputData)
-    )
-
-    const transaction = new Transaction(inputs, outputs)
-    transaction.id = data.id
-    transaction.version = data.version || 1
-    transaction.lockTime = data.lock_time || 0
-    transaction.fee = data.fee || 0
-    transaction.size = data.size || 0
-    transaction.timestamp = data.timestamp || Date.now()
-    transaction.confirmed = data.confirmed || false
-    transaction.blockHeight = data.block_height || null
-    transaction.blockHash = data.block_hash || null
-
-    return transaction
   }
 }
 
